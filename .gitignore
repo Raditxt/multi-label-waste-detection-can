@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.ipynb_checkpoints
+.env
+*.env
+venv_ai_clean/
+
+# VSCode or IDE
+.vscode/
+.idea/
+
+# Dataset Output
+dataset/images/
+dataset/*.csv
+!dataset/train.csv
+!dataset/val.csv
+dataset/error.log
+dataset/original_kaggle/
+dataset/original_trashnet/
+X_data.npy 
+Y_labels.npy
+
+# Model
+model/*.h5
+model/*.pth
+model/*.pt
+model/*.joblib
+model/*.pkl
+
+# Logs & Cache
+*.log
+*.tmp
+*.cache/
+error.log
+
+# Flask Static Cache (opsional)
+webapp/static/output/
+
+# Jupyter Notebook Checkpoints
+**/.ipynb_checkpoints
+
+# OS/System Files
+.DS_Store
+Thumbs.db

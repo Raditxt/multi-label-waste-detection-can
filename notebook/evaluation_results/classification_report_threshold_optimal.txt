@@ -1,0 +1,15 @@
+              precision    recall  f1-score   support
+
+     battery       0.71      0.78      0.74       260
+     organik       0.84      0.77      0.80       268
+       glass       0.52      0.86      0.65       273
+   cardboard       0.67      0.77      0.72       291
+       metal       0.56      0.80      0.66       290
+       paper       0.55      0.81      0.65       275
+     plastic       0.50      0.81      0.62       279
+       trash       0.47      0.86      0.61       277
+
+   micro avg       0.58      0.81      0.67      2213
+   macro avg       0.60      0.81      0.68      2213
+weighted avg       0.60      0.81      0.68      2213
+ samples avg       0.61      0.80      0.67      2213

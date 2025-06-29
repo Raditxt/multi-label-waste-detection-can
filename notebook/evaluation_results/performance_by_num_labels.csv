@@ -1,0 +1,4 @@
+num_labels,num_samples,binary_accuracy_optimal_threshold
+2.0,267,0.7626404494382022
+3.0,249,0.7008032128514057
+4.0,233,0.6689914163090128

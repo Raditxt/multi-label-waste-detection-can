@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deteksi Sampah Multi-Label</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Deteksi Sampah Multi-Label</h1>
+        <p>Unggah gambar sampah untuk mendapatkan prediksi jenis-jenis sampah yang ada di dalamnya.</p>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data" id="uploadForm">
+            <label for="imageUpload">Pilih Gambar:</label>
+            <input type="file" name="image" id="imageUpload" accept="image/*" required>
+            <button type="submit" id="predictButton">
+                Prediksi
+                <div class="spinner" id="loadingSpinner"></div>
+            </button>
+        </form>
+
+        {% if image_path %}
+            <h2>Hasil Prediksi:</h2>
+            <div class="image-display">
+                <h3>Gambar yang Diunggah:</h3>
+                <img src="{{ image_path }}" alt="Gambar yang diunggah" width="400">
+            </div>
+
+            <div class="prediction-results">
+                <h3>Label Terdeteksi:</h3>
+                {% if prediction and prediction.detected_labels %}
+                    {# Memeriksa apakah label 'Tidak Ditemukan Sampah Spesifik' ada dalam dictionary #}
+                    {% if "Tidak Ditemukan Sampah Spesifik" in prediction.detected_labels %}
+                        <p><strong>Tidak Ditemukan Sampah Spesifik.</strong></p>
+                        <p>Model tidak mendeteksi label sampah di atas ambang batas kepercayaan.</p>
+                    {% else %}
+                        <ul>
+                            {% for label, probability in prediction.detected_labels.items() %}
+                                <li>
+                                    <div class="label-text">
+                                        <span>{{ label | title }}</span>
+                                        <span class="probability-text">{{ '{:.2f}'.format(probability * 100) }}%</span>
+                                    </div>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar" style="width: {{ (probability * 100)|round(2) }}%;"></div>
+                                    </div>                                    
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% elif prediction and prediction.error %}
+                    <div class="error-message">
+                        <strong>Error saat prediksi:</strong> {{ prediction.error }}
+                    </div>
+                {% else %}
+                    <p>Tidak ada hasil prediksi yang valid.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <footer>
+        <p>&copy; 2025 Multi-Label Trash Classifier. Ditenagai oleh TensorFlow dan Flask.</p>
+    </footer>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

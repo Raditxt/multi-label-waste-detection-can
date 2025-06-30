@@ -1,210 +1,145 @@
+# webapp/app.py
+
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from werkzeug.utils import secure_filename
 import os
-import random
-import pandas as pd
-from PIL import Image, ImageOps, ImageFilter
-from sklearn.model_selection import train_test_split # Import untuk split data
-import numpy as np # Import untuk statistik
+import uuid
+import sys
 
-# ===== KONFIGURASI =====
-LABELS_FINAL = ['battery', 'organik', 'glass', 'cardboard', 'metal', 'paper', 'plastic', 'trash']
-LABEL_MAP = {
-    # Kaggle
-    'battery': 'battery',
-    'biological': 'organik',
-    'brown-glass': 'glass',
-    'white-glass': 'glass',
-    'green-glass': 'glass',
-    'clothes': 'trash',
-    'shoes': 'trash',
-    'metal': 'metal',
-    'paper': 'paper',
-    'cardboard': 'cardboard',
-    'plastic': 'plastic',
-    'trash': 'trash',
-    # TrashNet
-    'glass': 'glass'
-}
+# Tambahkan direktori 'webapp' ke Python path agar bisa import dari 'utils'
+# Ini penting agar Flask bisa menemukan modul 'utils.predict'
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Konfigurasi Tambahan untuk Dataset Generation
-NUM_IMAGES_TO_GENERATE = 5000 # Jumlah total gambar gabungan yang akan dibuat
-MIN_LABELS_PER_IMAGE = 2     # Minimum label (objek) per gambar gabungan
-MAX_LABELS_PER_IMAGE = 4     # Maksimum label (objek) per gambar gabungan
-TARGET_IMG_SIZE = (224, 224) # Ukuran target untuk setiap objek individual sebelum digabungkan
-TRAIN_TEST_SPLIT_RATIO = 0.2 # Rasio untuk test/validation set (0.2 = 20% untuk validasi)
-RANDOM_STATE_SPLIT = 42      # Seed untuk reproduksibilitas split
+from utils.predict import init_model, predict_image_path
 
-# ===== PATH =====
-BASE_DIR = 'dataset'
-KAGGLE_PATH = os.path.join(BASE_DIR, 'original_kaggle')
-TRASHNET_PATH = os.path.join(BASE_DIR, 'original_trashnet')
-OUTPUT_IMG_PATH = os.path.join(BASE_DIR, 'images')
-LABELS_CSV_PATH = os.path.join(BASE_DIR, 'labels.csv')
-TRAIN_CSV_PATH = os.path.join(BASE_DIR, 'train.csv')
-VAL_CSV_PATH = os.path.join(BASE_DIR, 'val.csv')
-ERROR_LOG_PATH = os.path.join(BASE_DIR, 'error.log') # Path untuk log error
+app = Flask(__name__)
 
-os.makedirs(OUTPUT_IMG_PATH, exist_ok=True)
+# --- Konfigurasi Aplikasi Flask ---
+app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # Batas ukuran file 5MB
+app.secret_key = 'your_super_secret_key_here' # Ganti dengan kunci rahasia yang kuat! Diperlukan untuk flash messages
 
-# Kosongkan file error log setiap kali skrip dijalankan
-if os.path.exists(ERROR_LOG_PATH):
-    os.remove(ERROR_LOG_PATH)
-# Buat direktori dataset jika belum ada, untuk memastikan error.log bisa ditulis
-os.makedirs(BASE_DIR, exist_ok=True)
+# Pastikan direktori uploads ada. Jika belum, buat.
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# --- Pemuatan Model (Dilakukan sekali saat aplikasi dimulai) ---
+# Ini adalah bagian krusial untuk efisiensi. Model, label, dan threshold dimuat hanya satu kali.
+print("--- Memuat Model, Label, dan Threshold Optimal ---")
+try:
+    model, LABELS_FINAL, OPTIMAL_THRESHOLDS = init_model()
+    print("Model, label, dan threshold berhasil dimuat!")
+    print(f"Jumlah label yang dikenali: {len(LABELS_FINAL)}")
+    # print(f"Optimal Thresholds: {OPTIMAL_THRESHOLDS}") # Bisa di-uncomment untuk debugging
+except Exception as e:
+    print(f"ERROR: Gagal memuat model atau konfigurasi: {e}")
+    print("Aplikasi akan berjalan, tetapi prediksi tidak akan berfungsi.")
+    model = None # Set model ke None agar tidak crash jika terjadi kegagalan
+    LABELS_FINAL = []
+    OPTIMAL_THRESHOLDS = {}
 
-# ===== FUNGSI BANTUAN =====
+# --- Fungsi Bantuan untuk Validasi File ---
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+def allowed_file(filename):
+    """
+    Memeriksa apakah ekstensi file diizinkan.
+    """
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def apply_random_augmentation(img):
-    """Menerapkan augmentasi dasar secara acak pada gambar."""
-    # Random Horizontal Flip
-    if random.random() < 0.5:
-        img = ImageOps.mirror(img)
+# --- Route Utama: Upload Gambar dan Tampilkan Hasil ---
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    image_path = None
+    prediction_results = None # Mengubah nama variabel agar lebih deskriptif
 
-    # Random Rotation (hanya 0, 90, 180, 270 derajat untuk menghindari padding tambahan)
-    rotations = [0, 90, 180, 270]
-    img = img.rotate(random.choice(rotations), expand=True)
+    if request.method == 'POST':
+        # 1. Periksa apakah ada file dalam request
+        if 'image' not in request.files:
+            flash('Tidak ada bagian file "image" dalam request.')
+            return redirect(request.url)
 
-    # Random Color Jitter (contoh sederhana)
-    if random.random() < 0.3:
-        r, g, b = img.split()
-        r = r.point(lambda i: i * random.uniform(0.8, 1.2))
-        g = g.point(lambda i: i * random.uniform(0.8, 1.2))
-        b = b.point(lambda i: i * random.uniform(0.8, 1.2))
-        img = Image.merge('RGB', (r, g, b))
+        file = request.files['image']
 
-    return img
+        # 2. Periksa apakah pengguna memilih file
+        if file.filename == '':
+            flash('Tidak ada file yang dipilih.')
+            return redirect(request.url)
+        
+        # 3. Validasi file
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            # Buat nama file unik menggunakan UUID untuk menghindari konflik
+            unique_filename = str(uuid.uuid4()) + "_" + filename
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file.save(file_path)
+            
+            # Lakukan prediksi jika model berhasil dimuat
+            if model:
+                print(f"Mulai prediksi untuk file: {file_path}")
+                prediction_results = predict_image_path(model, file_path, LABELS_FINAL, OPTIMAL_THRESHOLDS)
+                print(f"Hasil prediksi: {prediction_results}")
+            else:
+                flash("Model tidak dimuat. Prediksi tidak dapat dilakukan.")
+                prediction_results = {"error": "Model not loaded."}
+            
+            # Path gambar untuk ditampilkan di HTML
+            image_path = url_for('static', filename=os.path.join('uploads', unique_filename))
+            
+            # Opsional: Hapus file setelah prediksi. Untuk debugging, mungkin ingin disimpan.
+            # Jika Anda tidak menghapusnya, pastikan ada mekanisme pembersihan file lama.
+            # os.remove(file_path)
+            # print(f"File {file_path} dihapus setelah prediksi.")
+            
+        else:
+            flash('Jenis file tidak diizinkan. Harap unggah gambar (png, jpg, jpeg, gif).')
+            return redirect(request.url)
+            
+    # Render template dengan path gambar dan hasil prediksi
+    return render_template('index.html', image_path=image_path, prediction=prediction_results)
 
-def resize_with_padding(img, target_size=TARGET_IMG_SIZE, color=(0, 0, 0)):
-    img = img.convert('RGB')
-    old_size = img.size
-    ratio = min(target_size[0]/old_size[0], target_size[1]/old_size[1])
-    new_size = tuple([int(x*ratio) for x in old_size])
-    img = img.resize(new_size, Image.Resampling.LANCZOS)
-    new_img = Image.new('RGB', target_size, color)
-    paste_pos = ((target_size[0] - new_size[0]) // 2,
-                 (target_size[1] - new_size[1]) // 2)
-    new_img.paste(img, paste_pos)
-    return new_img
-
-def get_all_class_paths():
-    paths = {}
-    for root_path in [KAGGLE_PATH, TRASHNET_PATH]:
-        if not os.path.exists(root_path):
-            print(f"Peringatan: Direktori '{root_path}' tidak ditemukan. Melewatkan.")
-            continue
-        for folder in os.listdir(root_path):
-            folder_path = os.path.join(root_path, folder)
-            if os.path.isdir(folder_path):
-                if folder in LABEL_MAP:
-                    label_final = LABEL_MAP[folder]
-                    # Pastikan folder memiliki setidaknya satu gambar
-                    if any(file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')) for file in os.listdir(folder_path)):
-                        paths.setdefault(label_final, []).append(folder_path)
-                    else:
-                        print(f"Peringatan: Folder '{folder_path}' kosong atau tidak mengandung gambar yang didukung. Melewatkan.")
-                # else: # Ini akan sangat verbose jika banyak folder yang tidak ada di LABEL_MAP
-                #     print(f"Peringatan: Folder '{folder_path}' tidak ada di LABEL_MAP. Melewatkan.")
-    return paths
-
-def get_random_image_path(label_class, class_paths):
-    if label_class not in class_paths or not class_paths[label_class]:
-        raise ValueError(f"Tidak ada path folder yang tersedia untuk kelas label: {label_class}")
-
-    chosen_folder = random.choice(class_paths[label_class])
+# --- Endpoint REST API Khusus (Untuk integrasi non-UI) ---
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    # 1. Periksa apakah ada file dalam request
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
     
-    # Filter hanya file gambar
-    image_files = [f for f in os.listdir(chosen_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp'))]
-    if not image_files:
-        raise ValueError(f"Folder '{chosen_folder}' tidak mengandung gambar yang didukung untuk kelas: {label_class}")
+    file = request.files['image']
+    
+    # 2. Periksa apakah pengguna memilih file
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
 
-    chosen_file = random.choice(image_files)
-    return os.path.join(chosen_folder, chosen_file)
+    # 3. Validasi file
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = str(uuid.uuid4()) + "_" + filename
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(file_path)
 
-# ===== PROSES UTAMA =====
-class_paths = get_all_class_paths()
-
-# Verifikasi bahwa ada cukup data di semua kelas yang diinginkan
-for lbl in LABELS_FINAL:
-    if lbl not in class_paths or not class_paths[lbl]:
-        print(f"Error: Tidak ada data sumber yang ditemukan untuk label '{lbl}'. Harap periksa path dan struktur folder Anda.")
-        exit() # Keluar jika ada label yang tidak memiliki data
-
-data = []
-
-print("Memulai pembuatan dataset...")
-# Membuka file log error dalam mode 'append'
-with open(ERROR_LOG_PATH, "a") as logf:
-    for i in range(NUM_IMAGES_TO_GENERATE):
+        # Lakukan prediksi jika model berhasil dimuat
+        if model:
+            prediction_results = predict_image_path(model, file_path, LABELS_FINAL, OPTIMAL_THRESHOLDS)
+        else:
+            return jsonify({"error": "Model not loaded. Cannot perform prediction."}), 500
+        
+        # Selalu hapus file yang diunggah untuk API setelah prediksi, untuk menjaga kebersihan server.
         try:
-            # Menentukan jumlah label yang akan dipilih untuk gambar ini
-            num_selected_labels = random.randint(MIN_LABELS_PER_IMAGE, MAX_LABELS_PER_IMAGE)
-            
-            # Memilih label secara acak, pastikan label yang dipilih unik
-            # Menambahkan safety check jika LABELS_FINAL lebih kecil dari num_selected_labels
-            if num_selected_labels > len(LABELS_FINAL):
-                num_selected_labels = len(LABELS_FINAL)
-            selected_labels = random.sample(LABELS_FINAL, num_selected_labels)
-            
-            # Mengambil path gambar untuk label yang dipilih
-            selected_imgs_paths = [get_random_image_path(lbl, class_paths) for lbl in selected_labels]
-            
-            # Membuka gambar dan menerapkan augmentasi sebelum resize & padding
-            images_to_combine = []
-            for p in selected_imgs_paths:
-                img = Image.open(p)
-                img = apply_random_augmentation(img) # Terapkan augmentasi
-                images_to_combine.append(resize_with_padding(img, target_size=TARGET_IMG_SIZE))
-                
-            # Acak urutan gambar sebelum digabungkan
-            random.shuffle(images_to_combine)
+            os.remove(file_path)
+            print(f"File {file_path} dihapus setelah prediksi API.")
+        except OSError as e:
+            print(f"Error removing file {file_path}: {e}") # Log error jika gagal hapus
+        
+        return jsonify(prediction_results)
+    else:
+        return jsonify({"error": "Invalid file type. Please upload a PNG, JPG, JPEG, or GIF image."}), 400
 
-            # Menggabungkan gambar
-            total_width = TARGET_IMG_SIZE[0] * len(images_to_combine)
-            combined = Image.new('RGB', (total_width, TARGET_IMG_SIZE[1]))
-            for idx, img in enumerate(images_to_combine):
-                combined.paste(img, (idx * TARGET_IMG_SIZE[0], 0))
-
-            # Format angka dinamis
-            filename = f"img_{i:0{len(str(NUM_IMAGES_TO_GENERATE - 1))}}.jpg"
-            combined.save(os.path.join(OUTPUT_IMG_PATH, filename))
-
-            label_row = [filename] + [1 if lbl in selected_labels else 0 for lbl in LABELS_FINAL]
-            data.append(label_row)
-
-        except Exception as e:
-            error_message = f"Error saat memproses iterasi {i}: {e}"
-            print(f"{error_message}. Melewatkan gambar ini.")
-            logf.write(f"[{i}] {e}\n") # Simpan error ke file log
-            continue # Lanjutkan ke iterasi berikutnya
-
-print(f"Selesai: {len(data)} gambar berhasil dibuat di {OUTPUT_IMG_PATH}")
-if os.path.getsize(ERROR_LOG_PATH) > 0:
-    print(f"Periksa {ERROR_LOG_PATH} untuk daftar error yang dilewati.")
-else:
-    print("Tidak ada error yang dicatat dalam proses ini.")
-
-# Simpan CSV
-if data: # Pastikan ada data sebelum menyimpan
-    columns = ['filename'] + LABELS_FINAL
-    df = pd.DataFrame(data, columns=columns)
-    df.to_csv(LABELS_CSV_PATH, index=False)
-    print(f"File label keseluruhan disimpan di {LABELS_CSV_PATH}")
-
-    # ===== SPLIT OTOMATIS (TRAIN/VALIDATION) =====
-    print("Melakukan split dataset train/validation...")
-    train_df, val_df = train_test_split(df, test_size=TRAIN_TEST_SPLIT_RATIO, random_state=RANDOM_STATE_SPLIT)
-    train_df.to_csv(TRAIN_CSV_PATH, index=False)
-    val_df.to_csv(VAL_CSV_PATH, index=False)
-    print(f"Dataset train disimpan di {TRAIN_CSV_PATH} ({len(train_df)} sampel)")
-    print(f"Dataset validation disimpan di {VAL_CSV_PATH} ({len(val_df)} sampel)")
-
-    # ===== STATISTIK DATASET =====
-    print("\nStatistik Kemunculan Label di Dataset Keseluruhan:")
-    # Pastikan label_array dibuat dari df yang sudah ada
-    # Drop kolom 'filename' dan konversi ke numpy array
-    label_counts = df[LABELS_FINAL].sum(axis=0) 
-    for label, count in label_counts.items():
-        print(f"  {label:<10}: {int(count)} muncul")
-
-else:
-    print("Tidak ada gambar yang berhasil dibuat. Tidak ada CSV yang disimpan.")
+# --- Menjalankan Aplikasi Flask ---
+if __name__ == '__main__':
+    # Pastikan direktori UPLOAD_FOLDER ada saat startup
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
+    # Untuk pengembangan, gunakan debug=True.
+    # Untuk deployment produksi, set debug=False dan gunakan WSGI server (misal Gunicorn).
+    # host='0.0.0.0' akan membuat aplikasi dapat diakses dari luar localhost (misal dari jaringan lokal Anda).
+    app.run(debug=True, host='0.0.0.0')

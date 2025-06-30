@@ -20,7 +20,6 @@ document.getElementById('uploadForm').addEventListener('submit', function() {
     spinner.style.display = 'inline-block'; // Pastikan spinner terlihat
 });
 
-
 // Fungsi untuk menyembunyikan flash messages secara otomatis
 setTimeout(function() {
     const flashMessages = document.querySelectorAll('.flash-message');
@@ -32,3 +31,15 @@ setTimeout(function() {
         setTimeout(() => msg.remove(), 500); 
     });
 }, 5000); // Pesan akan hilang setelah 5 detik (5000 milidetik)
+
+window.addEventListener('pageshow', function () {
+    const button = document.getElementById('predictButton');
+    const spinner = document.getElementById('loadingSpinner');
+
+    if (button && spinner) {
+        // Kembalikan tombol ke kondisi awal (jaga-jaga jika error)
+        button.disabled = false;
+        button.innerHTML = 'Prediksi'; // Atur ulang teks tombol
+        spinner.style.display = 'none';
+    }
+});

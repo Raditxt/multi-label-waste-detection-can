@@ -11,6 +11,7 @@
         <h1>Deteksi Sampah Multi-Label</h1>
         <p>Unggah gambar sampah untuk mendapatkan prediksi jenis-jenis sampah yang ada di dalamnya.</p>
 
+        {# Flash Messages #}
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
@@ -51,8 +52,9 @@
                                         <span class="probability-text">{{ '{:.2f}'.format(probability * 100) }}%</span>
                                     </div>
                                     <div class="progress-bar-container">
+                                        {# Menggunakan round(2) untuk persentase dengan dua desimal #}
                                         <div class="progress-bar" style="width: {{ (probability * 100)|round(2) }}%;"></div>
-                                    </div>                                    
+                                    </div>
                                 </li>
                             {% endfor %}
                         </ul>

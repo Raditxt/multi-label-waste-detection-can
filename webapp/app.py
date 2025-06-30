@@ -70,7 +70,10 @@ def index():
             filename = secure_filename(file.filename)
             # Buat nama file unik menggunakan UUID untuk menghindari konflik
             unique_filename = str(uuid.uuid4()) + "_" + filename
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            
+            # Mendapatkan path lengkap untuk menyimpan file
+            # os.path.join() di sini tetap benar karena ini untuk path sistem file lokal
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename) 
             file.save(file_path)
             
             # Lakukan prediksi jika model berhasil dimuat
@@ -82,8 +85,10 @@ def index():
                 flash("Model tidak dimuat. Prediksi tidak dapat dilakukan.")
                 prediction_results = {"error": "Model not loaded."}
             
-            # Path gambar untuk ditampilkan di HTML
-            image_path = url_for('static', filename=os.path.join('uploads', unique_filename))
+            # --- Perbaikan: Menggunakan string concatenation dengan '/' untuk URL ---
+            # Ini akan memastikan URL yang benar (menggunakan forward slashes)
+            image_path = url_for('static', filename='uploads/' + unique_filename)
+            # --- Akhir Perbaikan ---
             
             # Opsional: Hapus file setelah prediksi. Untuk debugging, mungkin ingin disimpan.
             # Jika Anda tidak menghapusnya, pastikan ada mekanisme pembersihan file lama.

@@ -1,0 +1,202 @@
+/* webapp/static/webcam_style.css */
+
+/* Definisi Variabel Warna */
+:root {
+    --color-primary: #007bff;
+    --color-success: #28a745; /* Hijau */
+    --color-warning: #ffc107; /* Kuning */
+    --color-info: #17a2b8;    /* Biru kehijauan */
+    --color-danger: #dc3545;  /* Merah */
+    --color-text-dark: #333;
+    --color-text-light: #555;
+    --color-bg-light: #f8f8f8;
+    --color-bg-medium: #e9eff5;
+    --color-white: #ffffff;
+}
+
+/* Gaya Umum (dapat diduplikasi atau dipindahkan ke file global.css) */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--color-bg-medium);
+    color: var(--color-text-dark);
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 960px;
+    margin: 40px auto;
+    padding: 30px;
+    background-color: var(--color-white);
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+h1 {
+    color: var(--color-text-dark);
+    margin-bottom: 25px;
+    font-size: 2.2em;
+    font-weight: 600;
+}
+
+p {
+    margin-bottom: 15px;
+    font-size: 1.05em;
+    color: var(--color-text-light);
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #0056b3; /* Slightly darker primary */
+    text-decoration: underline;
+}
+
+/* Gaya Khusus untuk Webcam Page */
+.webcam-container {
+    margin-top: 30px;
+    margin-bottom: 30px;
+    background-color: var(--color-bg-light);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.webcam-feed {
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    border: 3px solid var(--color-primary);
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+}
+
+.webcam-instructions {
+    margin-top: 15px;
+    font-size: 1.1em;
+    color: var(--color-text-light);
+}
+
+.webcam-hint {
+    color: #777; 
+    font-size: 0.9em; 
+    margin-top: 10px;
+}
+
+/* Gaya untuk Indikator Status Kamera */
+.status-indicator {
+    padding: 8px 15px;
+    margin-top: 15px;
+    border-radius: 5px;
+    font-weight: bold;
+    display: inline-block;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.status-indicator.loading {
+    background-color: #ffe0b2;
+    color: #e65100;
+}
+
+.status-indicator.active {
+    background-color: #c8e6c9;
+    color: #2e7d32;
+}
+
+.status-indicator.error {
+    background-color: #ffcdd2;
+    color: #c62828;
+}
+
+/* Gaya untuk Area Notifikasi Live Prediksi (Teks) */
+.prediction-live-text {
+    margin-top: 25px;
+    padding: 15px;
+    background-color: #f0f8ff;
+    border: 1px solid #cceeff;
+    border-radius: 8px;
+    font-size: 1.1em;
+    color: var(--color-text-dark); /* Default text color */
+}
+
+.prediction-live-text strong {
+    color: var(--color-primary);
+}
+
+/* Gaya untuk Tombol Tangkap Gambar */
+.capture-button {
+    background-color: #ff6f00; /* Oranye cerah */
+    color: var(--color-white);
+    padding: 12px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-top: 25px;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.capture-button:hover {
+    background-color: #e65100;
+    transform: translateY(-2px);
+}
+
+.capture-button:active {
+    transform: translateY(0);
+}
+
+.capture-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+/* Gaya untuk Pesan Hasil Tangkapan */
+.capture-result-message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 0.95em;
+    min-height: 20px;
+}
+
+.capture-result-message.loading {
+    background-color: #fffde7;
+    color: #fbc02d;
+}
+
+.capture-result-message.success {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.capture-result-message.error {
+    background-color: #ffebee;
+    color: #d32f2f;
+}
+
+/* CSS untuk Loading Spinner */
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: var(--color-primary); /* Warna primer */
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

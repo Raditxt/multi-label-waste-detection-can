@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" data-video-url="{{ url_for('video_feed') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deteksi Sampah Live via Webcam</title>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='webcam.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Deteksi Sampah Live via Webcam</h1>
+        <p class="webcam-instructions">Arahkan kamera Anda ke objek sampah. Hasil prediksi akan muncul langsung di video.</p>
+        
+        <p id="statusMessage" class="status-indicator loading">Menghubungkan ke kamera...</p>
+
+        <div class="webcam-container">
+            <img id="videoStream" src="{{ url_for('video_feed') }}" class="webcam-feed" alt="Webcam Live Feed">
+            <p class="webcam-hint">
+                Jika webcam tidak muncul, pastikan Anda memberikan izin kamera di browser dan webcam berfungsi.
+            </p>
+        </div>
+
+        <div id="label-live-result" class="prediction-live-text">
+            <strong>Prediksi Terakhir:</strong> <span id="currentPredictionText">Memuat...</span>
+        </div>
+
+        <button id="captureButton" class="capture-button">Tangkap Gambar & Prediksi Sekarang</button>
+        <div class="spinner" id="captureSpinner" style="display: none;"></div>
+        <div id="captureResult" class="capture-result-message"></div>
+        
+        <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+            <h3>Ganti Sumber Kamera</h3>
+            <p>Masukkan indeks kamera (0, 1, dst.) atau URL/Path Video.</p>
+            <form id="sourceForm">
+                <input type="text" name="source" id="sourceInput" placeholder="Contoh: 0 atau http://ip_cam/stream" style="width: 70%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                <button type="submit" style="background-color: #17a2b8; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">Ganti Kamera</button>
+            </form>
+            <div id="setSourceStatus" style="margin-top: 10px; font-weight: bold;"></div>
+        </div>
+        <p style="margin-top: 30px;"><a href="{{ url_for('index') }}">← Kembali ke Halaman Upload Gambar</a></p>
+    </div>
+    <script src="{{ url_for('static', filename='webcam.js') }}"></script>
+</body>
+</html>
